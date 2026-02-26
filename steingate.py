@@ -319,34 +319,25 @@ class SteinGate(CPO):
         b_grads = get_flat_gradients_from(self._actor_critic.actor)        
         cost_limit = self._cfgs.algo_cfgs.cost_limit
         
-        # Check if we have collected episode costs
         if hasattr(self._env, 'rollcost') and len(self._env.rollcost) > 0:
             raw_costs = torch.tensor(self._env.rollcost, dtype=torch.float32, device=self._device)
-            case_ = self.stein_estimator.decide_case(raw_costs, cost_limit)
-
-            ep_costs = 25 if case_== 0 else -25
-            
+            real_violation = raw_costs.mean() - cost_limit
+            optim_case = self.stein_estimator.decide_case(raw_costs, cost_limit)
         else:
-            # Fallback if no episodes finished yet: use standard expected cost
             mean_cost = self._logger.get_stats('Metrics/EpCost')[0]
-            ep_costs = torch.tensor(mean_cost - cost_limit, dtype=torch.float32, device=self._device)
-            
+            real_violation = torch.tensor(mean_cost - cost_limit, dtype=torch.float32, device=self._device)
+            optim_case = 3 if real_violation <= 0 else 0
 
         p = conjugate_gradients(self._fvp, b_grads, self._cfgs.algo_cfgs.cg_iters)
         q = xHx
         r = grads.dot(p)
         s = b_grads.dot(p)
+        A = q - (r**2 / (s + 1e-8))
+        B = 2 * self._cfgs.algo_cfgs.target_kl * (s + 1e-8) - (real_violation**2)
 
-        optim_case, A, B = self._determine_case(
-            b_grads=b_grads,
-            ep_costs=ep_costs,  
-            q=q,
-            r=r,
-            s=s,
-        )
-
+        # 4. Use Stein 'optim_case'
         step_direction, lambda_star, nu_star = self._step_direction(
-            optim_case=optim_case,
+            optim_case=optim_case,  
             xHx=xHx,
             x=x,
             A=A,
@@ -355,7 +346,7 @@ class SteinGate(CPO):
             p=p,
             r=r,
             s=s,
-            ep_costs=ep_costs,
+            ep_costs=real_violation, 
         )
 
         step_direction, accept_step = self._cpo_search_step(
@@ -370,10 +361,10 @@ class SteinGate(CPO):
             loss_reward_before=loss_reward_before,
             loss_cost_before=loss_cost_before,
             total_steps=20,
-            violation_c=ep_costs,
-            optim_case=optim_case,
+            violation_c=real_violation, 
+            optim_case=optim_case,   
         )
-
+        
         theta_new = theta_old + step_direction
         set_param_values_to_model(self._actor_critic.actor, theta_new)
 
