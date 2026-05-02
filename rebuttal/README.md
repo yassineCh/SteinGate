@@ -1,9 +1,5 @@
 # Additional Results: SteinGate & CVaR-CPO
 
-This directory contains supplementary results to support the evaluation of **SteinGate** and **CVaR-CPO** across both v2 and v1 Safety Gymnasium environments.
-
----
-
 ## SteinGate on v2 Environments
 
 ### PointCircle2-v0
@@ -44,11 +40,3 @@ This directory contains supplementary results to support the evaluation of **Ste
 
 - All curves are averaged over 6 random seeds.
 - Shaded regions indicate standard deviation.
-
----
-
-## Purpose
-
-These results are provided to:
-- demonstrate SteinGate performance on **more challenging v2 environments**, and  
-- provide additional **baseline comparison (CVaR-CPO)** for completeness.
