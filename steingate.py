@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import torch
 from rich.progress import track
 
 from omnisafe.algorithms import registry
@@ -10,7 +9,6 @@ from omnisafe.common.logger import Logger
 from omnisafe.models.actor_critic.constraint_actor_critic import ConstraintActorCritic
 from omnisafe.utils import distributed
 from omnisafe.utils.math import conjugate_gradients
-from omnisafe.utils.config import Config
 from omnisafe.utils.tools import (
     get_flat_gradients_from,
     get_flat_params_from,
@@ -135,7 +133,7 @@ class SteinGateCertificate:
         self,
         raw_costs: Union[list, torch.Tensor],
         limit: float,
-    ) -> Tuple[int, Dict[str, float]]:
+    ) -> int:
         if not isinstance(raw_costs, torch.Tensor):
             raw_costs = torch.tensor(raw_costs, device=self.device)
         x_raw = raw_costs.float().to(self.device)
@@ -250,8 +248,8 @@ class SteinCertifAdapter(OnPolicyAdapter):
 @registry.register
 class SteinGate(CPO):
     """
-    Stein-CPO: Constrained Policy Optimization using Stein's Method with 
-    Normal reference and Upper Bound tail constraints.
+    SteinGate: a CPO-style constrained policy optimization method using a
+    Stein discrepancy certificate with a Beta-mixture reference model.
     """
     def _init_env(self) -> None:
         """Initialize the environment with SteinAdapter."""
@@ -266,7 +264,6 @@ class SteinGate(CPO):
             distributed.world_size() * self._cfgs.train_cfgs.vector_env_nums
         ) == 0, 'Steps per epoch not divisible by environments.'
         
-        print("distributed.world_size", distributed.world_size())
         self._steps_per_epoch: int = (
             self._cfgs.algo_cfgs.steps_per_epoch
             // distributed.world_size()
